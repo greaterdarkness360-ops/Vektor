@@ -142,13 +142,14 @@ class HidDeviceManager(private val context: Context) {
         return hidDevice?.connect(device) ?: false
     }
 
+    // Mengirim input mouse 4-byte (Tombol, Delta X, Delta Y, Scroll Wheel)
     fun sendMouseInput(buttonMask: Byte, deltaX: Byte, deltaY: Byte, wheel: Byte = 0) {
         val host = connectedHost ?: return
         val report = byteArrayOf(buttonMask, deltaX, deltaY, wheel)
         hidDevice?.sendReport(host, HidReportDescriptor.REPORT_ID_MOUSE, report)
     }
 
-    // Eksekutor Makro Keyboard Biner
+    // Eksekutor makro keyboard biner
     private fun sendKeyCombination(modifier: Byte, keycode: Byte) {
         val host = connectedHost ?: return
         val keyDown = byteArrayOf(modifier, 0x00.toByte(), keycode, 0x00, 0x00, 0x00, 0x00, 0x00)
@@ -156,6 +157,11 @@ class HidDeviceManager(private val context: Context) {
 
         val keyUp = ByteArray(8) { 0x00 }
         hidDevice?.sendReport(host, HidReportDescriptor.REPORT_ID_KEYBOARD, keyUp)
+    }
+
+    // Menjalankan makro tombol dinamis dari katalog
+    fun sendMacro(modifier: Byte, keyCode: Byte) {
+        sendKeyCombination(modifier, keyCode)
     }
 
     fun sendCopyMacro() = sendKeyCombination(HidReportDescriptor.KEY_MOD_LCTRL, HidReportDescriptor.KEY_C)
