@@ -83,6 +83,16 @@ class MainActivity : ComponentActivity() {
                                 hidManager.sendMouseInput(currentButtonMask, 0, 0, scrollStep)
                             }
                         }
+                        // GESTUR LAPTOP: Ketuk 1 Jari = Klik Kiri Instan
+                        is TrackpadUiEvent.SingleTapLeftClick -> {
+                            hidManager.sendMouseInput(HidReportDescriptor.MOUSE_BTN_LEFT, 0, 0, 0)
+                            hidManager.sendMouseInput(HidReportDescriptor.MOUSE_BTN_NONE, 0, 0, 0)
+                        }
+                        // GESTUR LAPTOP: Ketuk 2 Jari = Klik Kanan Instan
+                        is TrackpadUiEvent.TwoFingerTapRightClick -> {
+                            hidManager.sendMouseInput(HidReportDescriptor.MOUSE_BTN_RIGHT, 0, 0, 0)
+                            hidManager.sendMouseInput(HidReportDescriptor.MOUSE_BTN_NONE, 0, 0, 0)
+                        }
                         is TrackpadUiEvent.DragLockStarted -> {
                             isDragLockActive = true
                             currentButtonMask = HidReportDescriptor.MOUSE_BTN_LEFT
