@@ -15,11 +15,14 @@ sealed interface ConnectionStatus {
 }
 
 sealed interface TrackpadUiEvent {
+    // Navigasi & Gestur Laptop
     data class PointerMoved(val deltaX: Float, val deltaY: Float, val dtMillis: Long) : TrackpadUiEvent
     data class TwoFingerScrolled(val deltaY: Float, val dtMillis: Long) : TrackpadUiEvent
+    object SingleTapLeftClick : TrackpadUiEvent
+    object TwoFingerTapRightClick : TrackpadUiEvent
     object DragLockStarted : TrackpadUiEvent
     object DragLockEnded : TrackpadUiEvent
-    
+
     // Tombol Fisik Virtual
     object LeftButtonDown : TrackpadUiEvent
     object LeftButtonUp : TrackpadUiEvent
