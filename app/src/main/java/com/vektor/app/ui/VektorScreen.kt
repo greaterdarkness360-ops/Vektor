@@ -1,14 +1,17 @@
 package com.vektor.app.ui
 
 import android.bluetooth.BluetoothDevice
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -27,6 +30,7 @@ import com.vektor.app.ui.contract.ConnectionStatus
 import com.vektor.app.ui.contract.TrackpadUiEvent
 import com.vektor.app.ui.contract.TrackpadUiState
 import com.vektor.app.ui.gesture.trackpadTouchHandler
+import com.vektor.app.ui.model.MacroKey
 
 @Composable
 fun VektorScreen(
@@ -39,6 +43,8 @@ fun VektorScreen(
     modifier: Modifier = Modifier
 ) {
     var showDeviceDialog by remember { mutableStateOf(false) }
+    var showSettingsDialog by remember { mutableStateOf(false) }
+    var editingSlotIndex by remember { mutableStateOf<Int?>(null) }
 
     Column(
         modifier = modifier
@@ -47,15 +53,16 @@ fun VektorScreen(
             .statusBarsPadding()
             .navigationBarsPadding()
     ) {
-        // 1. Bilah Atas: Branding "VEKTOR", Status Koneksi, "By Natanael"
+        // 1. Bilah Atas
         TopVektorBar(
             status = state.connectionStatus,
             diagnosticText = diagnosticText,
             onRefresh = onReRegister,
+            onOpenSettings = { showSettingsDialog = true },
             onConnectClick = { showDeviceDialog = true }
         )
 
-        // 2. Kanvas Trackpad Horizontal Luas (Mendukung Tap-to-Click & Scroll 2 Jari)
+        // 2. Kanvas Trackpad Horizontal Luas
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -79,7 +86,7 @@ fun VektorScreen(
 
         Spacer(modifier = Modifier.height(6.dp))
 
-        // 3. Bilah Bawah (Bottom Dock): [ C ] [ V ] [ RE ] di Kiri, [ L ] [ R ] di Kanan
+        // 3. Bilah Bawah: 3 Tombol Makro Dinamis di Kiri, L dan R di Kanan
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -87,18 +94,30 @@ fun VektorScreen(
                 .padding(horizontal = 12.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Tombol Makro Kiri: Copy, Paste, Undo
+            // 3 Slot Makro Dinamis (Tekan-tahan untuk mengganti tombol)
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                MacroButton(label = "C", onClick = { onEvent(TrackpadUiEvent.CopyTriggered) })
-                MacroButton(label = "V", onClick = { onEvent(TrackpadUiEvent.PasteTriggered) })
-                MacroButton(label = "RE", onClick = { onEvent(TrackpadUiEvent.UndoTriggered) })
+                DynamicMacroButton(
+                    macroKey = state.slot1Macro,
+                    onClick = { onEvent(TrackpadUiEvent.MacroTriggered(state.slot1Macro)) },
+                    onLongClick = { editingSlotIndex = 0 }
+                )
+                DynamicMacroButton(
+                    macroKey = state.slot2Macro,
+                    onClick = { onEvent(TrackpadUiEvent.MacroTriggered(state.slot2Macro)) },
+                    onLongClick = { editingSlotIndex = 1 }
+                )
+                DynamicMacroButton(
+                    macroKey = state.slot3Macro,
+                    onClick = { onEvent(TrackpadUiEvent.MacroTriggered(state.slot3Macro)) },
+                    onLongClick = { editingSlotIndex = 2 }
+                )
             }
 
             Spacer(modifier = Modifier.width(16.dp))
 
-            // Tombol Fisik Virtual Kanan: L dan R (50:50)
+            // Tombol Klik Kanan & Kiri
             Row(
                 modifier = Modifier
                     .weight(1f)
@@ -129,7 +148,7 @@ fun VektorScreen(
         }
     }
 
-    // Dialog Pemilih Perangkat Tablet / PC
+    // Dialog 1: Pemilih Perangkat Bluetooth
     if (showDeviceDialog) {
         AlertDialog(
             onDismissRequest = { showDeviceDialog = false },
@@ -163,6 +182,83 @@ fun VektorScreen(
             containerColor = Color(0xFF161C2B)
         )
     }
+
+    // Dialog 2: Panel Pengaturan Slider Sensitivitas
+    if (showSettingsDialog) {
+        AlertDialog(
+            onDismissRequest = { showSettingsDialog = false },
+            title = { Text("Pengaturan Sensitivitas", color = Color.White) },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text("Kecepatan Kursor: ${String.format("%.1fx", state.pointerSpeed)}", color = Color.LightGray, fontSize = 13.sp)
+                    Slider(
+                        value = state.pointerSpeed,
+                        onValueChange = { onEvent(TrackpadUiEvent.PointerSpeedChanged(it)) },
+                        valueRange = 0.5f..2.5f,
+                        colors = SliderDefaults.colors(thumbColor = Color(0xFF00E5FF), activeTrackColor = Color(0xFF00E5FF))
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text("Sensitivitas Scroll 2 Jari: ${String.format("%.2f", state.scrollSpeed)}", color = Color.LightGray, fontSize = 13.sp)
+                    Slider(
+                        value = state.scrollSpeed,
+                        onValueChange = { onEvent(TrackpadUiEvent.ScrollSpeedChanged(it)) },
+                        valueRange = 0.02f..0.15f,
+                        colors = SliderDefaults.colors(thumbColor = Color(0xFF00E5FF), activeTrackColor = Color(0xFF00E5FF))
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showSettingsDialog = false }) {
+                    Text("Selesai", color = Color(0xFF00E5FF))
+                }
+            },
+            containerColor = Color(0xFF161C2B)
+        )
+    }
+
+    // Dialog 3: Katalog Pemilih Tombol Makro
+    editingSlotIndex?.let { slotIdx ->
+        AlertDialog(
+            onDismissRequest = { editingSlotIndex = null },
+            title = { Text("Pilih Simbol Tombol ${slotIdx + 1}", color = Color.White) },
+            text = {
+                LazyColumn(modifier = Modifier.height(280.dp)) {
+                    items(MacroKey.values().toList()) { macro ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    onEvent(TrackpadUiEvent.SlotChanged(slotIdx, macro))
+                                    editingSlotIndex = null
+                                }
+                                .padding(vertical = 8.dp, horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(Color(0xFF1F293D), RoundedCornerShape(6.dp))
+                                    .border(1.dp, Color(0xFF00E5FF), RoundedCornerShape(6.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(macro.symbol, color = Color.White, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(macro.title, color = Color.LightGray, fontSize = 14.sp)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { editingSlotIndex = null }) {
+                    Text("Batal", color = Color.Gray)
+                }
+            },
+            containerColor = Color(0xFF161C2B)
+        )
+    }
 }
 
 @Composable
@@ -170,6 +266,7 @@ private fun TopVektorBar(
     status: ConnectionStatus,
     diagnosticText: String,
     onRefresh: () -> Unit,
+    onOpenSettings: () -> Unit,
     onConnectClick: () -> Unit
 ) {
     Row(
@@ -179,7 +276,6 @@ private fun TopVektorBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        // Bagian Kiri: Nama Brand, Status Lampu, dan "By Natanael"
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = "VEKTOR",
@@ -206,15 +302,23 @@ private fun TopVektorBar(
             Text(text = "By Natanael", color = Color(0xFF6B7280), fontSize = 10.sp)
         }
 
-        // Bagian Kanan: Teks Diagnostik, Tombol Refresh, dan Tombol Sambungkan
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = diagnosticText,
                 color = Color(0xFF60A5FA),
                 fontSize = 10.sp,
                 maxLines = 1,
-                modifier = Modifier.padding(end = 8.dp)
+                modifier = Modifier.padding(end = 6.dp)
             )
+            Text(
+                text = "⚙️",
+                fontSize = 14.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .clickable { onOpenSettings() }
+                    .padding(4.dp)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
             Text(
                 text = "Refresh",
                 color = Color(0xFFFFB74D),
@@ -240,10 +344,12 @@ private fun TopVektorBar(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun MacroButton(
-    label: String,
-    onClick: () -> Unit
+private fun DynamicMacroButton(
+    macroKey: MacroKey,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
     Box(
@@ -252,20 +358,22 @@ private fun MacroButton(
             .clip(RoundedCornerShape(8.dp))
             .background(Color(0xFF141824))
             .border(1.2.dp, Color(0xFF00E5FF).copy(alpha = 0.7f), RoundedCornerShape(8.dp))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
+            .combinedClickable(
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     onClick()
+                },
+                onLongClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onLongClick()
                 }
             ),
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = label,
+            text = macroKey.symbol,
             color = Color(0xFFE2E8F0),
-            fontSize = 16.sp,
+            fontSize = 17.sp,
             fontWeight = FontWeight.SemiBold
         )
     }
