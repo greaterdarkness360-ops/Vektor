@@ -47,7 +47,7 @@ fun VektorScreen(
             .statusBarsPadding()
             .navigationBarsPadding()
     ) {
-        // 1. Bilah Atas: Branding "VEKTOR", Status, "By Natanael"
+        // 1. Bilah Atas: Branding "VEKTOR", Status Koneksi, "By Natanael"
         TopVektorBar(
             status = state.connectionStatus,
             diagnosticText = diagnosticText,
@@ -55,7 +55,7 @@ fun VektorScreen(
             onConnectClick = { showDeviceDialog = true }
         )
 
-        // 2. Kanvas Trackpad Horizontal Luas (Area Utama)
+        // 2. Kanvas Trackpad Horizontal Luas (Mendukung Tap-to-Click & Scroll 2 Jari)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -70,6 +70,8 @@ fun VektorScreen(
                 .trackpadTouchHandler(
                     onPointerMove = { dx, dy, dt -> onEvent(TrackpadUiEvent.PointerMoved(dx, dy, dt)) },
                     onTwoFingerScroll = { dy, dt -> onEvent(TrackpadUiEvent.TwoFingerScrolled(dy, dt)) },
+                    onSingleTap = { onEvent(TrackpadUiEvent.SingleTapLeftClick) },
+                    onTwoFingerTap = { onEvent(TrackpadUiEvent.TwoFingerTapRightClick) },
                     onDragLockStart = { onEvent(TrackpadUiEvent.DragLockStarted) },
                     onDragLockEnd = { onEvent(TrackpadUiEvent.DragLockEnded) }
                 )
@@ -77,7 +79,7 @@ fun VektorScreen(
 
         Spacer(modifier = Modifier.height(6.dp))
 
-        // 3. Bilah Bawah: [ C ] [ V ] [ RE ] di Kiri, [ L ] [ R ] di Kanan
+        // 3. Bilah Bawah (Bottom Dock): [ C ] [ V ] [ RE ] di Kiri, [ L ] [ R ] di Kanan
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -85,7 +87,7 @@ fun VektorScreen(
                 .padding(horizontal = 12.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Grup Tombol Makro Kiri
+            // Tombol Makro Kiri: Copy, Paste, Undo
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -96,7 +98,7 @@ fun VektorScreen(
 
             Spacer(modifier = Modifier.width(16.dp))
 
-            // Grup Tombol Mouse Kanan (50:50)
+            // Tombol Fisik Virtual Kanan: L dan R (50:50)
             Row(
                 modifier = Modifier
                     .weight(1f)
@@ -127,6 +129,7 @@ fun VektorScreen(
         }
     }
 
+    // Dialog Pemilih Perangkat Tablet / PC
     if (showDeviceDialog) {
         AlertDialog(
             onDismissRequest = { showDeviceDialog = false },
@@ -176,7 +179,7 @@ private fun TopVektorBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        // Branding Kiri
+        // Bagian Kiri: Nama Brand, Status Lampu, dan "By Natanael"
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = "VEKTOR",
@@ -188,7 +191,7 @@ private fun TopVektorBar(
             Spacer(modifier = Modifier.width(12.dp))
             val (indicatorColor, statusText) = when (status) {
                 is ConnectionStatus.Connected -> Color(0xFF4CAF50) to "Terhubung: ${status.deviceName}"
-                ConnectionStatus.Connecting -> Color(0xFFFFC107) to "Menyambungkan..."
+                ConnectionStatus.Connecting -> Color(0xFFFFC107) to "Menghubungkan..."
                 ConnectionStatus.Disconnected -> Color(0xFF757575) to "Belum Terhubung"
             }
             Box(
@@ -203,7 +206,7 @@ private fun TopVektorBar(
             Text(text = "By Natanael", color = Color(0xFF6B7280), fontSize = 10.sp)
         }
 
-        // Kontrol Kanan
+        // Bagian Kanan: Teks Diagnostik, Tombol Refresh, dan Tombol Sambungkan
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = diagnosticText,
