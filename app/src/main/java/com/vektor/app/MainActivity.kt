@@ -15,6 +15,7 @@ import androidx.compose.runtime.*
 import androidx.core.content.ContextCompat
 import com.vektor.app.bluetooth.HidDeviceManager
 import com.vektor.app.bluetooth.HidReportDescriptor
+import com.vektor.app.data.PreferencesManager
 import com.vektor.app.ui.VektorScreen
 import com.vektor.app.ui.contract.TrackpadUiEvent
 import com.vektor.app.ui.contract.TrackpadUiState
@@ -23,6 +24,7 @@ import kotlin.math.hypot
 class MainActivity : ComponentActivity() {
 
     private lateinit var hidManager: HidDeviceManager
+    private lateinit var prefsManager: PreferencesManager
     private var currentButtonMask: Byte = HidReportDescriptor.MOUSE_BTN_NONE
 
     private var remainderX = 0f
@@ -44,6 +46,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        prefsManager = PreferencesManager(this)
         hidManager = HidDeviceManager(this)
         checkAndRequestPermissions()
 
@@ -52,11 +55,22 @@ class MainActivity : ComponentActivity() {
             val diagnosticText by hidManager.diagnosticText.collectAsState()
             var isDragLockActive by remember { mutableStateOf(false) }
 
+            var slot1 by remember { mutableStateOf(prefsManager.getSlotMacro(0)) }
+            var slot2 by remember { mutableStateOf(prefsManager.getSlotMacro(1)) }
+            var slot3 by remember { mutableStateOf(prefsManager.getSlotMacro(2)) }
+            var pointerSpeed by remember { mutableStateOf(prefsManager.pointerSpeed) }
+            var scrollSpeed by remember { mutableStateOf(prefsManager.scrollSpeed) }
+
             val pairedDevices = remember { getPairedDevicesList() }
 
             val uiState = TrackpadUiState(
                 connectionStatus = connectionStatus,
-                isDragLockActive = isDragLockActive
+                isDragLockActive = isDragLockActive,
+                slot1Macro = slot1,
+                slot2Macro = slot2,
+                slot3Macro = slot3,
+                pointerSpeed = pointerSpeed,
+                scrollSpeed = scrollSpeed
             )
 
             VektorScreen(
@@ -72,23 +86,21 @@ class MainActivity : ComponentActivity() {
                 onEvent = { event ->
                     when (event) {
                         is TrackpadUiEvent.PointerMoved -> {
-                            val (scaledDx, scaledDy) = calculateSmoothPointerDelta(event.deltaX, event.deltaY, event.dtMillis)
+                            val (scaledDx, scaledDy) = calculateSmoothPointerDelta(event.deltaX, event.deltaY, event.dtMillis, pointerSpeed)
                             if (scaledDx != 0.toByte() || scaledDy != 0.toByte()) {
                                 hidManager.sendMouseInput(currentButtonMask, scaledDx, scaledDy, 0)
                             }
                         }
                         is TrackpadUiEvent.TwoFingerScrolled -> {
-                            val scrollStep = calculateSmoothScrollDelta(event.deltaY, event.dtMillis)
+                            val scrollStep = calculateSmoothScrollDelta(event.deltaY, event.dtMillis, scrollSpeed)
                             if (scrollStep != 0.toByte()) {
                                 hidManager.sendMouseInput(currentButtonMask, 0, 0, scrollStep)
                             }
                         }
-                        // GESTUR LAPTOP: Ketuk 1 Jari = Klik Kiri Instan
                         is TrackpadUiEvent.SingleTapLeftClick -> {
                             hidManager.sendMouseInput(HidReportDescriptor.MOUSE_BTN_LEFT, 0, 0, 0)
                             hidManager.sendMouseInput(HidReportDescriptor.MOUSE_BTN_NONE, 0, 0, 0)
                         }
-                        // GESTUR LAPTOP: Ketuk 2 Jari = Klik Kanan Instan
                         is TrackpadUiEvent.TwoFingerTapRightClick -> {
                             hidManager.sendMouseInput(HidReportDescriptor.MOUSE_BTN_RIGHT, 0, 0, 0)
                             hidManager.sendMouseInput(HidReportDescriptor.MOUSE_BTN_NONE, 0, 0, 0)
@@ -119,14 +131,24 @@ class MainActivity : ComponentActivity() {
                             currentButtonMask = (currentButtonMask.toInt() and HidReportDescriptor.MOUSE_BTN_RIGHT.toInt().inv()).toByte()
                             hidManager.sendMouseInput(currentButtonMask, 0, 0, 0)
                         }
-                        is TrackpadUiEvent.CopyTriggered -> {
-                            hidManager.sendCopyMacro()
+                        is TrackpadUiEvent.MacroTriggered -> {
+                            hidManager.sendMacro(event.macroKey.modifier, event.macroKey.keyCode)
                         }
-                        is TrackpadUiEvent.PasteTriggered -> {
-                            hidManager.sendPasteMacro()
+                        is TrackpadUiEvent.SlotChanged -> {
+                            prefsManager.setSlotMacro(event.slotIndex, event.macroKey)
+                            when (event.slotIndex) {
+                                0 -> slot1 = event.macroKey
+                                1 -> slot2 = event.macroKey
+                                2 -> slot3 = event.macroKey
+                            }
                         }
-                        is TrackpadUiEvent.UndoTriggered -> {
-                            hidManager.sendUndoMacro()
+                        is TrackpadUiEvent.PointerSpeedChanged -> {
+                            pointerSpeed = event.speed
+                            prefsManager.pointerSpeed = event.speed
+                        }
+                        is TrackpadUiEvent.ScrollSpeedChanged -> {
+                            scrollSpeed = event.speed
+                            prefsManager.scrollSpeed = event.speed
                         }
                     }
                 }
@@ -164,16 +186,17 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun calculateSmoothPointerDelta(rawDx: Float, rawDy: Float, dtMillis: Long): Pair<Byte, Byte> {
+    private fun calculateSmoothPointerDelta(rawDx: Float, rawDy: Float, dtMillis: Long, userSpeed: Float): Pair<Byte, Byte> {
         if (dtMillis <= 0L) return Pair(0, 0)
         val distance = hypot(rawDx, rawDy)
         val velocity = distance / dtMillis
 
-        val accelFactor = when {
+        val baseAccel = when {
             velocity < 0.15f -> 0.95f
             velocity < 0.6f -> 1.20f
             else -> (1.20f + (velocity - 0.6f) * 0.75f).coerceAtMost(2.5f)
         }
+        val accelFactor = baseAccel * userSpeed
 
         val targetDx = rawDx * accelFactor + remainderX
         val targetDy = rawDy * accelFactor + remainderY
@@ -187,10 +210,9 @@ class MainActivity : ComponentActivity() {
         return Pair(stepX.toByte(), stepY.toByte())
     }
 
-    private fun calculateSmoothScrollDelta(rawDy: Float, dtMillis: Long): Byte {
+    private fun calculateSmoothScrollDelta(rawDy: Float, dtMillis: Long, userScrollFactor: Float): Byte {
         if (dtMillis <= 0L) return 0
-        val scrollSpeedFactor = 0.06f
-        val targetScroll = (rawDy * scrollSpeedFactor) + scrollRemainder
+        val targetScroll = (rawDy * userScrollFactor) + scrollRemainder
         val stepScroll = targetScroll.toInt().coerceIn(-3, 3)
         scrollRemainder = targetScroll - stepScroll
         return stepScroll.toByte()
