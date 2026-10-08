@@ -4,6 +4,7 @@ import android.bluetooth.BluetoothDevice
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -26,11 +27,8 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.vektor.app.ui.contract.ConnectionStatus
-import com.vektor.app.ui.contract.TrackpadUiEvent
-import com.vektor.app.ui.contract.TrackpadUiState
+import com.vektor.app.ui.contract.*
 import com.vektor.app.ui.gesture.trackpadTouchHandler
-import com.vektor.app.ui.model.MacroKey
 
 @Composable
 fun VektorScreen(
@@ -86,7 +84,7 @@ fun VektorScreen(
 
         Spacer(modifier = Modifier.height(6.dp))
 
-        // 3. Bilah Bawah: 3 Tombol Makro Dinamis di Kiri, L dan R di Kanan
+        // 3. Bilah Bawah: 3 Tombol Makro di Kiri, L dan R di Kanan
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -94,7 +92,7 @@ fun VektorScreen(
                 .padding(horizontal = 12.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 3 Slot Makro Dinamis (Tekan-tahan untuk mengganti tombol)
+            // 3 Slot Makro Dinamis (Tekan-tahan untuk memilih simbol)
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -117,7 +115,7 @@ fun VektorScreen(
 
             Spacer(modifier = Modifier.width(16.dp))
 
-            // Tombol Klik Kanan & Kiri
+            // Tombol Klik Mouse Kiri dan Kanan
             Row(
                 modifier = Modifier
                     .weight(1f)
@@ -148,7 +146,7 @@ fun VektorScreen(
         }
     }
 
-    // Dialog 1: Pemilih Perangkat Bluetooth
+    // Dialog 1: Pilih Perangkat Bluetooth
     if (showDeviceDialog) {
         AlertDialog(
             onDismissRequest = { showDeviceDialog = false },
@@ -183,7 +181,7 @@ fun VektorScreen(
         )
     }
 
-    // Dialog 2: Panel Pengaturan Slider Sensitivitas
+    // Dialog 2: Panel Slider Sensitivitas
     if (showSettingsDialog) {
         AlertDialog(
             onDismissRequest = { showSettingsDialog = false },
@@ -218,7 +216,7 @@ fun VektorScreen(
         )
     }
 
-    // Dialog 3: Katalog Pemilih Tombol Makro
+    // Dialog 3: Katalog Pemilih Tombol
     editingSlotIndex?.let { slotIdx ->
         AlertDialog(
             onDismissRequest = { editingSlotIndex = null },
