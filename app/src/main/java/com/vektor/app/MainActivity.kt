@@ -3,6 +3,8 @@ package com.vektor.app
 import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
+import android.content.Context
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -15,16 +17,14 @@ import androidx.compose.runtime.*
 import androidx.core.content.ContextCompat
 import com.vektor.app.bluetooth.HidDeviceManager
 import com.vektor.app.bluetooth.HidReportDescriptor
-import com.vektor.app.data.PreferencesManager
 import com.vektor.app.ui.VektorScreen
-import com.vektor.app.ui.contract.TrackpadUiEvent
-import com.vektor.app.ui.contract.TrackpadUiState
+import com.vektor.app.ui.contract.*
 import kotlin.math.hypot
 
 class MainActivity : ComponentActivity() {
 
     private lateinit var hidManager: HidDeviceManager
-    private lateinit var prefsManager: PreferencesManager
+    private lateinit var prefsManager: VektorPreferences
     private var currentButtonMask: Byte = HidReportDescriptor.MOUSE_BTN_NONE
 
     private var remainderX = 0f
@@ -46,7 +46,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        prefsManager = PreferencesManager(this)
+        prefsManager = VektorPreferences(this)
         hidManager = HidDeviceManager(this)
         checkAndRequestPermissions()
 
@@ -221,5 +221,36 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         hidManager.release()
+    }
+}
+
+// Penyimpan Pengaturan Lokal Tanpa Perlu File Eksternal
+private class VektorPreferences(context: Context) {
+    private val prefs: SharedPreferences = context.getSharedPreferences("vektor_prefs", Context.MODE_PRIVATE)
+
+    var pointerSpeed: Float
+        get() = prefs.getFloat("pointer_speed", 1.0f)
+        set(value) = prefs.edit().putFloat("pointer_speed", value).apply()
+
+    var scrollSpeed: Float
+        get() = prefs.getFloat("scroll_speed", 0.06f)
+        set(value) = prefs.edit().putFloat("scroll_speed", value).apply()
+
+    fun getSlotMacro(slotIndex: Int): MacroKey {
+        val defaultKey = when (slotIndex) {
+            0 -> MacroKey.COPY
+            1 -> MacroKey.PASTE
+            else -> MacroKey.UNDO
+        }
+        val name = prefs.getString("slot_${slotIndex}_macro", defaultKey.name) ?: defaultKey.name
+        return try {
+            MacroKey.valueOf(name)
+        } catch (_: Exception) {
+            defaultKey
+        }
+    }
+
+    fun setSlotMacro(slotIndex: Int, key: MacroKey) {
+        prefs.edit().putString("slot_${slotIndex}_macro", key.name).apply()
     }
 }
